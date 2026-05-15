@@ -1,4 +1,4 @@
-import { createAuthClient } from '@neondatabase/neon-js/auth'
+import { createInternalNeonAuth } from '@neondatabase/neon-js/auth'
 import { computed, shallowRef } from 'vue'
 
 interface AuthUser {
@@ -28,7 +28,6 @@ interface AuthTokenResult {
 
 interface NeonAuthClient {
   getSession: () => Promise<AuthSessionResult>
-  getJWTToken?: () => Promise<string | null>
   token?: () => Promise<AuthTokenResult>
   signOut: () => Promise<unknown>
   signIn: {
@@ -41,6 +40,7 @@ interface NeonAuthClient {
 }
 
 let authClient: NeonAuthClient | null = null
+let getAuthJwtToken: (() => Promise<string | null>) | null = null
 
 export const authUser = shallowRef<AuthUser | null>(null)
 export const authReady = shallowRef(false)
@@ -61,13 +61,16 @@ function assertAuthResult(result: AuthSessionResult): void {
 }
 
 export async function initAuth(baseUrl: string): Promise<void> {
-  authClient = createAuthClient(baseUrl) as unknown as NeonAuthClient
+  const auth = createInternalNeonAuth(baseUrl)
+  authClient = auth.adapter as unknown as NeonAuthClient
+  getAuthJwtToken = auth.getJWTToken
   await refreshSession()
   authReady.value = true
 }
 
 export function initLocalAuth(): void {
   authClient = null
+  getAuthJwtToken = null
   authUser.value = {
     id: 'local-dev',
     email: 'local-dev@example.test',
@@ -107,6 +110,7 @@ export async function signOut(): Promise<void> {
   if (authClient) {
     await authClient.signOut()
   }
+  getAuthJwtToken = null
   authUser.value = null
 }
 
@@ -115,8 +119,8 @@ export async function getJwtToken(): Promise<string | null> {
     return null
   }
 
-  if (authClient.getJWTToken) {
-    const token = await authClient.getJWTToken()
+  if (getAuthJwtToken) {
+    const token = await getAuthJwtToken()
     if (!token) {
       throw new Error('Could not refresh authentication')
     }
