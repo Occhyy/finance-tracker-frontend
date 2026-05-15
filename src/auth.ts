@@ -28,7 +28,8 @@ interface AuthTokenResult {
 
 interface NeonAuthClient {
   getSession: () => Promise<AuthSessionResult>
-  token: () => Promise<AuthTokenResult>
+  getJWTToken?: () => Promise<string | null>
+  token?: () => Promise<AuthTokenResult>
   signOut: () => Promise<unknown>
   signIn: {
     email: (input: { email: string; password: string }) => Promise<AuthSessionResult>
@@ -114,10 +115,23 @@ export async function getJwtToken(): Promise<string | null> {
     return null
   }
 
-  const result = await authClient.token()
-  if (result.error) {
-    throw new Error(result.error.message ?? 'Could not refresh authentication')
+  if (authClient.getJWTToken) {
+    const token = await authClient.getJWTToken()
+    if (!token) {
+      throw new Error('Could not refresh authentication')
+    }
+
+    return token
   }
 
-  return result.data?.token ?? null
+  if (authClient.token) {
+    const result = await authClient.token()
+    if (result.error) {
+      throw new Error(result.error.message ?? 'Could not refresh authentication')
+    }
+
+    return result.data?.token ?? null
+  }
+
+  throw new Error('Authentication token support is not available')
 }
