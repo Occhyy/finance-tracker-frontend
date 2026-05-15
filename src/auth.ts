@@ -110,7 +110,6 @@ export async function signOut(): Promise<void> {
   if (authClient) {
     await authClient.signOut()
   }
-  getAuthJwtToken = null
   authUser.value = null
 }
 
